@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -43,7 +44,7 @@ func loadConfig() (*Config, error) {
 		DryRun:          getEnvOrDefault("DRY_RUN", "false") == "true",
 		MaxDelete:       getEnvIntOrDefault("MAX_DELETE", 1000),
 		Retries:         getEnvIntOrDefault("RETRIES", 3),
-		BandwidthLimit:  getEnvOrDefault("BANDWIDTH_LIMIT", ""),
+		BandwidthLimit:  cleanBandwidthLimit(getEnvOrDefault("BANDWIDTH_LIMIT", "")),
 		LogLevel:        getEnvOrDefault("LOG_LEVEL", "info"),
 	}
 
@@ -89,6 +90,12 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func cleanBandwidthLimit(value string) string {
+	// Remove surrounding quotes and trim whitespace
+	cleaned := strings.Trim(strings.TrimSpace(value), "\"'")
+	return cleaned
 }
 
 
