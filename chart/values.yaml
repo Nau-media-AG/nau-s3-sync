@@ -50,6 +50,7 @@ env:
   DEST_ACCESS_KEY: ""     # Destination S3 access key
   DEST_SECRET_KEY: ""     # Destination S3 secret key
   DEST_BUCKET: ""         # Destination bucket name
+  DEST_PREFIX: ""         # Prefix for destination path (defaults to source bucket name)
   
   # Sync configuration (OPTIONAL - sensible defaults provided)
   DRY_RUN: "false"        # Set to "true" for testing

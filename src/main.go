@@ -20,6 +20,7 @@ type Config struct {
 	DestAccessKey       string
 	DestSecretKey       string
 	DestBucket          string
+	DestPrefix          string
 	DryRun              bool
 	MaxDelete           int
 	Retries             int
@@ -28,15 +29,17 @@ type Config struct {
 }
 
 func loadConfig() (*Config, error) {
+	sourceBucket := getEnvOrDefault("SOURCE_BUCKET", "")
 	config := &Config{
 		SourceEndpoint:  getEnvOrDefault("SOURCE_S3_ENDPOINT", ""),
 		SourceAccessKey: getEnvOrDefault("SOURCE_ACCESS_KEY", ""),
 		SourceSecretKey: getEnvOrDefault("SOURCE_SECRET_KEY", ""),
-		SourceBucket:    getEnvOrDefault("SOURCE_BUCKET", ""),
+		SourceBucket:    sourceBucket,
 		DestEndpoint:    getEnvOrDefault("DEST_S3_ENDPOINT", ""),
 		DestAccessKey:   getEnvOrDefault("DEST_ACCESS_KEY", ""),
 		DestSecretKey:   getEnvOrDefault("DEST_SECRET_KEY", ""),
 		DestBucket:      getEnvOrDefault("DEST_BUCKET", ""),
+		DestPrefix:      getEnvOrDefault("DEST_PREFIX", sourceBucket),
 		DryRun:          getEnvOrDefault("DRY_RUN", "false") == "true",
 		MaxDelete:       getEnvIntOrDefault("MAX_DELETE", 1000),
 		Retries:         getEnvIntOrDefault("RETRIES", 3),
@@ -129,7 +132,7 @@ func runSync(config *Config, logger *logrus.Logger) error {
 	defer os.Remove(configFile)
 
 	sourceRemote := fmt.Sprintf("source:%s", config.SourceBucket)
-	destRemote := fmt.Sprintf("dest:%s", config.DestBucket)
+	destRemote := fmt.Sprintf("dest:%s/%s", config.DestBucket, config.DestPrefix)
 
 	args := []string{
 		"sync",
@@ -208,6 +211,7 @@ func main() {
 	logger.WithFields(logrus.Fields{
 		"source_bucket": config.SourceBucket,
 		"dest_bucket":   config.DestBucket,
+		"dest_prefix":   config.DestPrefix,
 		"dry_run":       config.DryRun,
 	}).Info("Starting S3 sync job")
 
