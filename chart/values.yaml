@@ -1,0 +1,73 @@
+# Settings
+settings:
+  name: s3-sync
+  namespace: default
+
+# Container image configuration
+image:
+  repository: s3-sync
+  tag: latest
+  pullPolicy: Always
+
+# CronJob configuration
+cronjob:
+  # Run every hour at minute 0 (adjust as needed)
+  schedule: "0 * * * *"
+  
+  # Keep last 3 successful and 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  
+  # If a job doesn't start within 10 minutes of scheduled time, consider it missed
+  startingDeadlineSeconds: 600
+  
+  # Job timeout - adjust based on expected sync duration (1 hour)
+  activeDeadlineSeconds: 3600
+  
+  # Don't restart failed jobs automatically
+  backoffLimit: 0
+
+# Resource limits
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Environment variables with sensible defaults
+# Only specify credentials as they are required
+env:
+  # S3 Source configuration (REQUIRED)
+  SOURCE_S3_ENDPOINT: ""  # e.g., "https://on-prem-s3.example.com"
+  SOURCE_ACCESS_KEY: ""   # Source S3 access key
+  SOURCE_SECRET_KEY: ""   # Source S3 secret key  
+  SOURCE_BUCKET: ""       # Source bucket name
+  
+  # S3 Destination configuration (REQUIRED)
+  DEST_S3_ENDPOINT: ""    # e.g., "https://cloud-s3.example.com"
+  DEST_ACCESS_KEY: ""     # Destination S3 access key
+  DEST_SECRET_KEY: ""     # Destination S3 secret key
+  DEST_BUCKET: ""         # Destination bucket name
+  
+  # Sync configuration (OPTIONAL - sensible defaults provided)
+  DRY_RUN: "false"        # Set to "true" for testing
+  MAX_DELETE: "1000"      # Maximum files to delete in one sync
+  RETRIES: "3"            # Number of retries for failed operations
+  BANDWIDTH_LIMIT: ""     # e.g., "10M" for 10MB/s limit (empty = no limit)
+  LOG_LEVEL: "info"       # Log level: debug, info, warn, error
+
+# Node selection (optional)
+nodeSelector: {}
+  # kubernetes.io/os: linux
+
+# Tolerations (optional)
+tolerations: []
+  # - key: "example-key"
+  #   operator: "Equal"
+  #   value: "example-value"
+  #   effect: "NoSchedule"
+
+# Affinity (optional)
+affinity: {}

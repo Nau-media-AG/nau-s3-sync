@@ -1,0 +1,115 @@
+name: Build and Tag Docker Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for generating release notes
+
+      - name: Set version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "NEW_VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+          else
+            # Get latest version from GitHub releases
+            current_version=$(gh release list -L 1 | cut -f1)
+            current_version=${current_version#v}  # Remove 'v' prefix if present
+
+            # Split version into major, minor, patch
+            IFS='.' read -r major minor patch <<< "$current_version"
+
+            # Increment based on release type
+            case "${{ github.event.inputs.release_type }}" in
+              major)
+                major=$((major + 1))
+                minor=0
+                patch=0
+                ;;
+              minor)
+                minor=$((minor + 1))
+                patch=0
+                ;;
+              patch)
+                patch=$((patch + 1))
+                ;;
+            esac
+
+            # Create new version string
+            new_version="v${major}.${minor}.${patch}"
+            echo "NEW_VERSION=${new_version}" >> $GITHUB_ENV
+            echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Convert repository name to lowercase
+        id: repo-name
+        run: |
+          echo "REPO_LOWER=${IMAGE_NAME,,}" >> $GITHUB_ENV
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}:latest
+            ${{ env.REGISTRY }}/${{ env.REPO_LOWER }}:${{ env.NEW_VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create Git tag and release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Version: ${{ env.NEW_VERSION }}" >> $GITHUB_STEP_SUMMARY
+          git tag ${{ env.NEW_VERSION }}
+          git push origin ${{ env.NEW_VERSION }}
+
+          # Generate release notes
+          previous_tag=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$previous_tag" ]; then
+            changelog=$(git log --pretty=format:"- %s" $previous_tag..${{ env.NEW_VERSION }})
+          else
+            changelog=$(git log --pretty=format:"- %s")
+          fi
+
+          # Create GitHub release
+          gh release create ${{ env.NEW_VERSION }} \
+            --title "${{ env.NEW_VERSION }}" \
+            --notes "$changelog" \
+            --generate-notes

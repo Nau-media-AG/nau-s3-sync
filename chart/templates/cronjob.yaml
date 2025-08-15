@@ -1,0 +1,74 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.settings.name }}-cronjob
+  namespace: {{ .Values.settings.namespace }}
+  labels:
+    app: {{ .Values.settings.name }}
+spec:
+  # Schedule from values
+  schedule: {{ .Values.cronjob.schedule | quote }}
+  
+  # Prevent overlapping jobs
+  concurrencyPolicy: Forbid
+  
+  # Keep job history
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
+  
+  # Starting deadline
+  startingDeadlineSeconds: {{ .Values.cronjob.startingDeadlineSeconds }}
+  
+  jobTemplate:
+    spec:
+      # Job timeout
+      activeDeadlineSeconds: {{ .Values.cronjob.activeDeadlineSeconds }}
+      
+      # Don't restart failed jobs automatically
+      backoffLimit: {{ .Values.cronjob.backoffLimit }}
+      
+      template:
+        metadata:
+          labels:
+            app: {{ .Values.settings.name }}
+        spec:
+          restartPolicy: Never
+          
+          containers:
+          - name: {{ .Values.settings.name }}
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            
+            # Load all environment variables from the secret
+            envFrom:
+            - secretRef:
+                name: {{ .Values.settings.name }}-environment-secret
+            
+            resources:
+              {{- toYaml .Values.resources | nindent 14 }}
+            
+            # Health check (optional for CronJob)
+            livenessProbe:
+              exec:
+                command:
+                - pgrep
+                - s3-sync
+              initialDelaySeconds: 30
+              periodSeconds: 60
+              timeoutSeconds: 10
+              failureThreshold: 3
+          
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          
+          {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
